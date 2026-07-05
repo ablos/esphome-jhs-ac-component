@@ -387,15 +387,11 @@ void JhsAirConditioner::update_ac_state(const AirConditionerState &state)
     }
 
     const bool is_tank_full = (state.water_tank_state == AirConditionerState::WaterTankState::Full);
+    m_water_tank_full_ = is_tank_full;
     if (m_water_tank_sensor) {
         m_water_tank_sensor->publish_state(is_tank_full);
     }
-    ESP_LOGD(TAG, "Water tank: %s, m_led_active_=%s, m_led_power_group_=%s",
-             is_tank_full ? "FULL" : "EMPTY",
-             m_led_active_ ? "true" : "false",
-             m_led_power_group_ ? "set" : "null");
     if (!m_led_active_ && m_led_power_group_) {
-        ESP_LOGD(TAG, "Power group LED -> %s", is_tank_full ? "ON" : "OFF");
         if (is_tank_full) {
             m_led_power_group_->turn_on();
         } else {
@@ -466,10 +462,6 @@ const char* JhsAirConditioner::get_fan_speed_name(AirConditionerState::FanSpeed 
 
 void JhsAirConditioner::led_wake_()
 {
-    ESP_LOGD(TAG, "led_wake_(): display=%s power=%s mode=%s",
-             m_led_display_ ? "set" : "null",
-             m_led_power_group_ ? "set" : "null",
-             m_led_mode_group_ ? "set" : "null");
     if (m_led_display_) m_led_display_->turn_on();
     if (m_led_mode_group_) m_led_mode_group_->turn_on();
     if (m_led_power_group_) m_led_power_group_->turn_on();
@@ -480,9 +472,15 @@ void JhsAirConditioner::led_wake_()
 void JhsAirConditioner::led_check_timeout_()
 {
     if (m_led_active_ && (millis() - m_led_wake_time_ >= m_led_wake_duration_ms_)) {
-        ESP_LOGD(TAG, "led_check_timeout_(): timer expired, turning off display and mode");
         if (m_led_display_) m_led_display_->turn_off();
         if (m_led_mode_group_) m_led_mode_group_->turn_off();
+        if (m_led_power_group_) {
+            if (m_water_tank_full_) {
+                m_led_power_group_->turn_on();
+            } else {
+                m_led_power_group_->turn_off();
+            }
+        }
         m_led_active_ = false;
     }
 }
