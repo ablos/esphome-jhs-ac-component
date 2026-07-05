@@ -85,6 +85,7 @@ private:
     uint32_t m_led_wake_time_{0};
     bool m_led_active_{false};
     bool m_water_tank_full_{false};
+    bool m_water_tank_state_known_{false};
     bool m_prev_water_tank_full_{false};
     climate::ClimateTraits m_traits;
     climate::ClimateModeMask m_supported_modes;

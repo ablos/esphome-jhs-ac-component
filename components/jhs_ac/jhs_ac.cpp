@@ -390,16 +390,27 @@ void JhsAirConditioner::update_ac_state(const AirConditionerState &state)
     if (m_water_tank_sensor) {
         m_water_tank_sensor->publish_state(is_tank_full);
     }
-    if (is_tank_full != m_prev_water_tank_full_) {
-        m_water_tank_full_ = is_tank_full;
+    m_water_tank_full_ = is_tank_full;
+    if (!m_water_tank_state_known_) {
+        // First packet ever received — establish initial power LED state
+        m_water_tank_state_known_ = true;
         if (m_led_power_group_) {
             if (is_tank_full) {
                 m_led_power_group_->turn_on();
             } else if (!m_led_active_) {
                 m_led_power_group_->turn_off();
             }
-            // if m_led_active_ is true and tank just emptied,
-            // led_check_timeout_() will turn off the power LED when the timer expires
+            // If wake timer still active and tank empty, led_check_timeout_() will turn it off
+        }
+    } else if (is_tank_full != m_prev_water_tank_full_) {
+        // State changed on a subsequent packet
+        if (m_led_power_group_) {
+            if (is_tank_full) {
+                m_led_power_group_->turn_on();
+            } else if (!m_led_active_) {
+                m_led_power_group_->turn_off();
+            }
+            // If led_active and tank just emptied, led_check_timeout_() handles it when timer expires
         }
     }
     m_prev_water_tank_full_ = is_tank_full;
@@ -479,7 +490,7 @@ void JhsAirConditioner::led_check_timeout_()
     if (m_led_active_ && (millis() - m_led_wake_time_ >= m_led_wake_duration_ms_)) {
         if (m_led_display_) m_led_display_->turn_off();
         if (m_led_mode_group_) m_led_mode_group_->turn_off();
-        if (!m_water_tank_full_ && m_led_power_group_) m_led_power_group_->turn_off();
+        if (m_water_tank_state_known_ && !m_water_tank_full_ && m_led_power_group_) m_led_power_group_->turn_off();
         m_led_active_ = false;
     }
 }
