@@ -10,7 +10,7 @@ public:
     {
         serialize_command(packet, 
             static_cast<uint8_t>(Function::Oscillation), 
-            static_cast<uint8_t>(m_status ? 0x01 : 0x00));
+            static_cast<uint8_t>(m_status ? 0x02 : 0x00));
     }
 
     void set_status(bool status) { m_status = status; }
