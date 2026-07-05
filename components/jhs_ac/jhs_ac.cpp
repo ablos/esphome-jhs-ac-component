@@ -383,9 +383,16 @@ void JhsAirConditioner::update_ac_state(const AirConditionerState &state)
         m_interaction_callbacks_.call();
     }
 
+    const bool is_tank_full = (state.water_tank_state == AirConditionerState::WaterTankState::Full);
     if (m_water_tank_sensor) {
-        m_water_tank_sensor->publish_state(state.water_tank_state == AirConditionerState::WaterTankState::Full);
+        m_water_tank_sensor->publish_state(is_tank_full);
     }
+    if (is_tank_full && !m_prev_water_tank_full_) {
+        m_water_tank_full_callbacks_.call();
+    } else if (!is_tank_full && m_prev_water_tank_full_) {
+        m_water_tank_empty_callbacks_.call();
+    }
+    m_prev_water_tank_full_ = is_tank_full;
 }
 
 bool JhsAirConditioner::validate_state_packet_checksum(const BinaryInputStream &stream, uint32_t checksum)

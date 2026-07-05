@@ -46,6 +46,12 @@ public:
     void add_on_interaction_callback(std::function<void()> &&callback) {
         m_interaction_callbacks_.add(std::move(callback));
     }
+    void add_on_water_tank_full_callback(std::function<void()> &&callback) {
+        m_water_tank_full_callbacks_.add(std::move(callback));
+    }
+    void add_on_water_tank_empty_callback(std::function<void()> &&callback) {
+        m_water_tank_empty_callbacks_.add(std::move(callback));
+    }
 
 protected:
     climate::ClimateTraits traits() override;
@@ -76,12 +82,29 @@ private:
     climate::ClimateFanModeMask m_supported_fan_modes;
     climate::ClimateSwingModeMask m_supported_swing_modes;
     CallbackManager<void()> m_interaction_callbacks_;
+    CallbackManager<void()> m_water_tank_full_callbacks_;
+    CallbackManager<void()> m_water_tank_empty_callbacks_;
+    bool m_prev_water_tank_full_{false};
 };
 
 class JhsAcInteractionTrigger : public Trigger<> {
 public:
     explicit JhsAcInteractionTrigger(JhsAirConditioner *parent) {
         parent->add_on_interaction_callback([this]() { this->trigger(); });
+    }
+};
+
+class JhsAcWaterTankFullTrigger : public Trigger<> {
+public:
+    explicit JhsAcWaterTankFullTrigger(JhsAirConditioner *parent) {
+        parent->add_on_water_tank_full_callback([this]() { this->trigger(); });
+    }
+};
+
+class JhsAcWaterTankEmptyTrigger : public Trigger<> {
+public:
+    explicit JhsAcWaterTankEmptyTrigger(JhsAirConditioner *parent) {
+        parent->add_on_water_tank_empty_callback([this]() { this->trigger(); });
     }
 };
 

@@ -23,6 +23,8 @@ CONF_SUPPORTED_FAN_MODES = "supported_fan_modes"
 CONF_SUPPORTED_SWING_MODES = "supported_swing_modes"
 
 CONF_ON_INTERACTION = "on_interaction"
+CONF_ON_WATER_TANK_FULL = "on_water_tank_full"
+CONF_ON_WATER_TANK_EMPTY = "on_water_tank_empty"
 CONF_WATER_TANK_STATUS = "water_tank_status"
 ICON_WATER_TANK_STATUS = "mdi:water-alert"
 
@@ -32,6 +34,12 @@ JhsAirConditioner = jhs_ac_ns.class_(
 )
 JhsAcInteractionTrigger = jhs_ac_ns.class_(
     "JhsAcInteractionTrigger", automation.Trigger.template()
+)
+JhsAcWaterTankFullTrigger = jhs_ac_ns.class_(
+    "JhsAcWaterTankFullTrigger", automation.Trigger.template()
+)
+JhsAcWaterTankEmptyTrigger = jhs_ac_ns.class_(
+    "JhsAcWaterTankEmptyTrigger", automation.Trigger.template()
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -43,6 +51,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.ensure_list(validate_climate_swing_mode),
             cv.Optional(CONF_ON_INTERACTION): automation.validate_automation({
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(JhsAcInteractionTrigger),
+            }),
+            cv.Optional(CONF_ON_WATER_TANK_FULL): automation.validate_automation({
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(JhsAcWaterTankFullTrigger),
+            }),
+            cv.Optional(CONF_ON_WATER_TANK_EMPTY): automation.validate_automation({
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(JhsAcWaterTankEmptyTrigger),
             }),
             cv.Optional(CONF_WATER_TANK_STATUS): binary_sensor.binary_sensor_schema(
                 icon=ICON_WATER_TANK_STATUS,
@@ -73,6 +87,14 @@ async def to_code(config):
             cg.add(var.add_supported_swing_mode(swing_mode))
     
     for conf in config.get(CONF_ON_INTERACTION, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_WATER_TANK_FULL, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_WATER_TANK_EMPTY, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
