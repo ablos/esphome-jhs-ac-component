@@ -160,16 +160,13 @@ void JhsAirConditioner::control(const climate::ClimateCall &call)
     {
         OscillationCommand oscillation_command;
         BinaryOutputStream packet_stream(packet_data, sizeof(packet_data));
-        const bool desired_swing_mode = swing_mode.value() == climate::CLIMATE_SWING_VERTICAL;
 
-        if (m_supported_swing_modes.count(swing_mode.value())) 
+        if (m_supported_swing_modes.count(swing_mode.value()))
         {
-            if (m_state.oscillation != desired_swing_mode)
-            {
-                oscillation_command.set_status(desired_swing_mode);
-                oscillation_command.write_to_packet(packet_stream);
-                add_packet_to_queue(packet_stream);
-            }
+            // any non-OFF swing mode means oscillation on; OFF means off
+            oscillation_command.set_status(swing_mode.value() != climate::CLIMATE_SWING_OFF);
+            oscillation_command.write_to_packet(packet_stream);
+            add_packet_to_queue(packet_stream);
         }
         else {
             ESP_LOGW(TAG, "Unsupported swing mode was requested, ignoring");
@@ -335,7 +332,18 @@ void JhsAirConditioner::update_ac_state(const AirConditionerState &state)
     this->target_temperature = state.temperature_setting;
     this->current_temperature = state.temperature_ambient;
     this->preset = state.sleep ? climate::CLIMATE_PRESET_SLEEP : climate::CLIMATE_PRESET_NONE;
-    this->swing_mode = state.oscillation ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
+
+    // Pick the first configured non-OFF swing mode when oscillating, so the
+    // published state matches whatever the user declared (HORIZONTAL, VERTICAL, etc.)
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
+    if (state.oscillation) {
+        for (auto swing : m_supported_swing_modes) {
+            if (swing != climate::CLIMATE_SWING_OFF) {
+                this->swing_mode = swing;
+                break;
+            }
+        }
+    }
     
     // map AC fan speed to climate fan mode using supported modes
     auto mapped_fan_mode = get_mapped_climate_fan_mode(state.fan_speed);
