@@ -39,12 +39,14 @@ void JhsAirConditioner::setup()
     m_traits.set_supported_swing_modes(m_supported_swing_modes);
 
     // hardcoded for now, but may become optional in future
-    m_traits.set_supported_presets({climate::CLIMATE_PRESET_NONE, 
+    m_traits.set_supported_presets({climate::CLIMATE_PRESET_NONE,
                                     climate::CLIMATE_PRESET_SLEEP});
+    led_wake_();
 }
 
 void JhsAirConditioner::loop()
 {
+    led_check_timeout_();
     read_uart_data();
     parse_received_data();
     send_queued_command();
@@ -381,16 +383,24 @@ void JhsAirConditioner::update_ac_state(const AirConditionerState &state)
         (App.get_loop_component_start_time() - m_last_command_send_time) < 500;
     if (control_changed && !is_command_echo) {
         m_interaction_callbacks_.call();
+        led_wake_();
     }
 
     const bool is_tank_full = (state.water_tank_state == AirConditionerState::WaterTankState::Full);
     if (m_water_tank_sensor) {
         m_water_tank_sensor->publish_state(is_tank_full);
     }
-    if (is_tank_full && !m_prev_water_tank_full_) {
-        m_water_tank_full_callbacks_.call();
-    } else if (!is_tank_full && m_prev_water_tank_full_) {
-        m_water_tank_empty_callbacks_.call();
+    if (is_tank_full != m_prev_water_tank_full_) {
+        m_water_tank_full_ = is_tank_full;
+        if (m_led_power_group_) {
+            if (is_tank_full) {
+                m_led_power_group_->turn_on();
+            } else if (!m_led_active_) {
+                m_led_power_group_->turn_off();
+            }
+            // if m_led_active_ is true and tank just emptied,
+            // led_check_timeout_() will turn off the power LED when the timer expires
+        }
     }
     m_prev_water_tank_full_ = is_tank_full;
 }
@@ -452,6 +462,25 @@ const char* JhsAirConditioner::get_fan_speed_name(AirConditionerState::FanSpeed 
         case AirConditionerState::FanSpeed::Medium: return "Medium";
         case AirConditionerState::FanSpeed::High: return "High";
         default: return "Unknown";
+    }
+}
+
+void JhsAirConditioner::led_wake_()
+{
+    if (m_led_display_) m_led_display_->turn_on();
+    if (m_led_mode_group_) m_led_mode_group_->turn_on();
+    if (m_led_power_group_) m_led_power_group_->turn_on();
+    m_led_wake_time_ = millis();
+    m_led_active_ = true;
+}
+
+void JhsAirConditioner::led_check_timeout_()
+{
+    if (m_led_active_ && (millis() - m_led_wake_time_ >= m_led_wake_duration_ms_)) {
+        if (m_led_display_) m_led_display_->turn_off();
+        if (m_led_mode_group_) m_led_mode_group_->turn_off();
+        if (!m_water_tank_full_ && m_led_power_group_) m_led_power_group_->turn_off();
+        m_led_active_ = false;
     }
 }
 

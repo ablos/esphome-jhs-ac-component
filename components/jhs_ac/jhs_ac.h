@@ -3,6 +3,7 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/output/binary_output.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/automation.h"
@@ -23,8 +24,8 @@ struct CommandPacket
 class JhsAirConditioner : public climate::Climate, public uart::UARTDevice, public esphome::Component
 {
 public:
-    JhsAirConditioner() : 
-        m_water_tank_sensor(nullptr), 
+    JhsAirConditioner() :
+        m_water_tank_sensor(nullptr),
         m_last_command_send_time(0) {};
 
     static constexpr const char *TAG = "jhs-ac";
@@ -40,17 +41,15 @@ public:
     void control(const climate::ClimateCall &call) override;
     float get_setup_priority() const override;
     void set_water_tank_sensor(binary_sensor::BinarySensor *sensor);
+    void set_led_display(output::BinaryOutput *out) { m_led_display_ = out; }
+    void set_led_power_group(output::BinaryOutput *out) { m_led_power_group_ = out; }
+    void set_led_mode_group(output::BinaryOutput *out) { m_led_mode_group_ = out; }
+    void set_led_wake_duration(uint32_t ms) { m_led_wake_duration_ms_ = ms; }
     void add_supported_mode(climate::ClimateMode mode);
     void add_supported_fan_mode(climate::ClimateFanMode fan_mode);
     void add_supported_swing_mode(climate::ClimateSwingMode swing_mode);
     void add_on_interaction_callback(std::function<void()> &&callback) {
         m_interaction_callbacks_.add(std::move(callback));
-    }
-    void add_on_water_tank_full_callback(std::function<void()> &&callback) {
-        m_water_tank_full_callbacks_.add(std::move(callback));
-    }
-    void add_on_water_tank_empty_callback(std::function<void()> &&callback) {
-        m_water_tank_empty_callbacks_.add(std::move(callback));
     }
 
 protected:
@@ -64,6 +63,8 @@ protected:
     void dump_ac_state(const AirConditionerState &state);
     void update_ac_state(const AirConditionerState &state);
     bool validate_state_packet_checksum(const BinaryInputStream &stream, uint32_t checksum);
+    void led_wake_();
+    void led_check_timeout_();
 
     optional<AirConditionerState::Mode> get_mapped_ac_mode(climate::ClimateMode climate_mode) const;
     optional<AirConditionerState::FanSpeed> get_mapped_fan_speed(climate::ClimateFanMode fan_mode) const;
@@ -74,37 +75,28 @@ private:
     AirConditionerState m_state;
     PacketParser m_parser;
     binary_sensor::BinarySensor *m_water_tank_sensor;
+    output::BinaryOutput *m_led_display_{nullptr};
+    output::BinaryOutput *m_led_power_group_{nullptr};
+    output::BinaryOutput *m_led_mode_group_{nullptr};
     RingBuffer<uint8_t, 128> m_data_buffer;
     RingBuffer<CommandPacket, 8> m_tx_queue;
     uint32_t m_last_command_send_time;
+    uint32_t m_led_wake_duration_ms_{5000};
+    uint32_t m_led_wake_time_{0};
+    bool m_led_active_{false};
+    bool m_water_tank_full_{false};
+    bool m_prev_water_tank_full_{false};
     climate::ClimateTraits m_traits;
     climate::ClimateModeMask m_supported_modes;
     climate::ClimateFanModeMask m_supported_fan_modes;
     climate::ClimateSwingModeMask m_supported_swing_modes;
     CallbackManager<void()> m_interaction_callbacks_;
-    CallbackManager<void()> m_water_tank_full_callbacks_;
-    CallbackManager<void()> m_water_tank_empty_callbacks_;
-    bool m_prev_water_tank_full_{false};
 };
 
 class JhsAcInteractionTrigger : public Trigger<> {
 public:
     explicit JhsAcInteractionTrigger(JhsAirConditioner *parent) {
         parent->add_on_interaction_callback([this]() { this->trigger(); });
-    }
-};
-
-class JhsAcWaterTankFullTrigger : public Trigger<> {
-public:
-    explicit JhsAcWaterTankFullTrigger(JhsAirConditioner *parent) {
-        parent->add_on_water_tank_full_callback([this]() { this->trigger(); });
-    }
-};
-
-class JhsAcWaterTankEmptyTrigger : public Trigger<> {
-public:
-    explicit JhsAcWaterTankEmptyTrigger(JhsAirConditioner *parent) {
-        parent->add_on_water_tank_empty_callback([this]() { this->trigger(); });
     }
 };
 
