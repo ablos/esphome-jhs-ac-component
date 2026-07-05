@@ -390,10 +390,12 @@ void JhsAirConditioner::update_ac_state(const AirConditionerState &state)
     if (m_water_tank_sensor) {
         m_water_tank_sensor->publish_state(is_tank_full);
     }
-    // When the wake timer is running, all LEDs are already on — don't override power group.
-    // When the timer is not running, enforce power group state directly from tank state
-    // on every packet so there's no dependency on detecting a state change.
+    ESP_LOGD(TAG, "Water tank: %s, m_led_active_=%s, m_led_power_group_=%s",
+             is_tank_full ? "FULL" : "EMPTY",
+             m_led_active_ ? "true" : "false",
+             m_led_power_group_ ? "set" : "null");
     if (!m_led_active_ && m_led_power_group_) {
+        ESP_LOGD(TAG, "Power group LED -> %s", is_tank_full ? "ON" : "OFF");
         if (is_tank_full) {
             m_led_power_group_->turn_on();
         } else {
@@ -464,6 +466,10 @@ const char* JhsAirConditioner::get_fan_speed_name(AirConditionerState::FanSpeed 
 
 void JhsAirConditioner::led_wake_()
 {
+    ESP_LOGD(TAG, "led_wake_(): display=%s power=%s mode=%s",
+             m_led_display_ ? "set" : "null",
+             m_led_power_group_ ? "set" : "null",
+             m_led_mode_group_ ? "set" : "null");
     if (m_led_display_) m_led_display_->turn_on();
     if (m_led_mode_group_) m_led_mode_group_->turn_on();
     if (m_led_power_group_) m_led_power_group_->turn_on();
@@ -474,10 +480,9 @@ void JhsAirConditioner::led_wake_()
 void JhsAirConditioner::led_check_timeout_()
 {
     if (m_led_active_ && (millis() - m_led_wake_time_ >= m_led_wake_duration_ms_)) {
+        ESP_LOGD(TAG, "led_check_timeout_(): timer expired, turning off display and mode");
         if (m_led_display_) m_led_display_->turn_off();
         if (m_led_mode_group_) m_led_mode_group_->turn_off();
-        // Power group is managed entirely by the water tank state in update_ac_state(),
-        // not here — avoids the race between the timer and the first heartbeat.
         m_led_active_ = false;
     }
 }
