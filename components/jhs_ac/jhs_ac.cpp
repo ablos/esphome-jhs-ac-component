@@ -381,10 +381,11 @@ void JhsAirConditioner::update_ac_state(const AirConditionerState &state)
         (this->preset       != snap_preset);
     const bool is_command_echo =
         (App.get_loop_component_start_time() - m_last_command_send_time) < 500;
-    if (control_changed && !is_command_echo) {
+    if (m_state_initialized_ && control_changed && !is_command_echo) {
         m_interaction_callbacks_.call();
         led_wake_();
     }
+    m_state_initialized_ = true;
 
     const bool is_tank_full = (state.water_tank_state == AirConditionerState::WaterTankState::Full);
     m_water_tank_full_ = is_tank_full;
