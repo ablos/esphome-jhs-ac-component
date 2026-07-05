@@ -390,30 +390,16 @@ void JhsAirConditioner::update_ac_state(const AirConditionerState &state)
     if (m_water_tank_sensor) {
         m_water_tank_sensor->publish_state(is_tank_full);
     }
-    m_water_tank_full_ = is_tank_full;
-    if (!m_water_tank_state_known_) {
-        // First packet ever received — establish initial power LED state
-        m_water_tank_state_known_ = true;
-        if (m_led_power_group_) {
-            if (is_tank_full) {
-                m_led_power_group_->turn_on();
-            } else if (!m_led_active_) {
-                m_led_power_group_->turn_off();
-            }
-            // If wake timer still active and tank empty, led_check_timeout_() will turn it off
-        }
-    } else if (is_tank_full != m_prev_water_tank_full_) {
-        // State changed on a subsequent packet
-        if (m_led_power_group_) {
-            if (is_tank_full) {
-                m_led_power_group_->turn_on();
-            } else if (!m_led_active_) {
-                m_led_power_group_->turn_off();
-            }
-            // If led_active and tank just emptied, led_check_timeout_() handles it when timer expires
+    // When the wake timer is running, all LEDs are already on — don't override power group.
+    // When the timer is not running, enforce power group state directly from tank state
+    // on every packet so there's no dependency on detecting a state change.
+    if (!m_led_active_ && m_led_power_group_) {
+        if (is_tank_full) {
+            m_led_power_group_->turn_on();
+        } else {
+            m_led_power_group_->turn_off();
         }
     }
-    m_prev_water_tank_full_ = is_tank_full;
 }
 
 bool JhsAirConditioner::validate_state_packet_checksum(const BinaryInputStream &stream, uint32_t checksum)
@@ -490,7 +476,8 @@ void JhsAirConditioner::led_check_timeout_()
     if (m_led_active_ && (millis() - m_led_wake_time_ >= m_led_wake_duration_ms_)) {
         if (m_led_display_) m_led_display_->turn_off();
         if (m_led_mode_group_) m_led_mode_group_->turn_off();
-        if (m_water_tank_state_known_ && !m_water_tank_full_ && m_led_power_group_) m_led_power_group_->turn_off();
+        // Power group is managed entirely by the water tank state in update_ac_state(),
+        // not here — avoids the race between the timer and the first heartbeat.
         m_led_active_ = false;
     }
 }
