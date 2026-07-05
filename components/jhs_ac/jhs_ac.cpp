@@ -304,6 +304,15 @@ void JhsAirConditioner::dump_ac_state(const AirConditionerState &state)
 
 void JhsAirConditioner::update_ac_state(const AirConditionerState &state)
 {
+    // Snapshot control-relevant entity fields before updating them.
+    // Ambient temperature is intentionally excluded — sensor noise would
+    // cause constant false triggers on every heartbeat packet.
+    const auto snap_mode       = this->mode;
+    const auto snap_target_temp = this->target_temperature;
+    const auto snap_fan_mode   = this->fan_mode;
+    const auto snap_swing_mode = this->swing_mode;
+    const auto snap_preset     = this->preset;
+
     if (!state.power) {
         this->mode = climate::CLIMATE_MODE_OFF;
     }
@@ -357,6 +366,22 @@ void JhsAirConditioner::update_ac_state(const AirConditionerState &state)
     }
 
     publish_state();
+
+    // Fire the interaction callback only for physical button presses.
+    // A state packet arriving within 500ms of us sending a command is treated
+    // as the AC echoing our own command back, not a physical interaction.
+    // From observed logs, command echoes arrive in ~64ms.
+    const bool control_changed =
+        (this->mode         != snap_mode)        ||
+        (this->target_temperature != snap_target_temp) ||
+        (this->fan_mode     != snap_fan_mode)    ||
+        (this->swing_mode   != snap_swing_mode)  ||
+        (this->preset       != snap_preset);
+    const bool is_command_echo =
+        (App.get_loop_component_start_time() - m_last_command_send_time) < 500;
+    if (control_changed && !is_command_echo) {
+        m_interaction_callbacks_.call();
+    }
 
     if (m_water_tank_sensor) {
         m_water_tank_sensor->publish_state(state.water_tank_state == AirConditionerState::WaterTankState::Full);

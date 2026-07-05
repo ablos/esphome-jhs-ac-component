@@ -5,6 +5,8 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 #include "binary_output_stream.h"
 #include "ac_state.h"
 #include "packet_parser.h"
@@ -41,6 +43,9 @@ public:
     void add_supported_mode(climate::ClimateMode mode);
     void add_supported_fan_mode(climate::ClimateFanMode fan_mode);
     void add_supported_swing_mode(climate::ClimateSwingMode swing_mode);
+    void add_on_interaction_callback(std::function<void()> &&callback) {
+        m_interaction_callbacks_.add(std::move(callback));
+    }
 
 protected:
     climate::ClimateTraits traits() override;
@@ -70,6 +75,14 @@ private:
     climate::ClimateModeMask m_supported_modes;
     climate::ClimateFanModeMask m_supported_fan_modes;
     climate::ClimateSwingModeMask m_supported_swing_modes;
+    CallbackManager<void()> m_interaction_callbacks_;
+};
+
+class JhsAcInteractionTrigger : public Trigger<> {
+public:
+    explicit JhsAcInteractionTrigger(JhsAirConditioner *parent) {
+        parent->add_on_interaction_callback([this]() { this->trigger(); });
+    }
 };
 
 } // namespace esphome::jhs_ac
